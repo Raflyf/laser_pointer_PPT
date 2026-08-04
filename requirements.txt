@@ -1,0 +1,8 @@
+Flask==3.0.3
+Flask-SocketIO==5.3.6
+pyautogui==0.9.54
+pygetwindow==0.0.9
+psutil==5.9.8
+qrcode[pil]==7.4.2
+eventlet==0.36.1
+pyopenssl==24.1.0

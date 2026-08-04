@@ -1,0 +1,6 @@
+venv/
+__pycache__/
+*.pyc
+static/qr.png
+.env
+.vscode/

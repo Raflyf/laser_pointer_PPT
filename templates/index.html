@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pointer PPT</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <div class="main-container">
+        <div class="glass-panel">
+            
+            <div style="text-align: center;">
+                <h1 class="app-title">Pointer PPT</h1>
+                <p id="status-text" style="font-size: 12px; color: #ef4444;">Status: Disconnected</p>
+            </div>
+            
+            <div class="mode-toggles">
+                <button class="glass-btn active" id="btn-mode-touch">Touchpad</button>
+                <button class="glass-btn" id="btn-mode-gyro">Gyroscope</button>
+            </div>
+
+            <div>
+                <p class="section-title">Mode Laser</p>
+                <div class="laser-toggles">
+                    <button class="glass-btn laser-btn" id="btn-laser-ppt">
+                        <i class="fa-solid fa-file-powerpoint"></i> PPT
+                    </button>
+                    <button class="glass-btn laser-btn" id="btn-laser-global">
+                        <i class="fa-solid fa-globe"></i> Global
+                    </button>
+                </div>
+            </div>
+
+            <!-- Touchpad Area -->
+            <div class="touchpad-area" id="touchpad-area">
+                <span id="touchpad-text">Touchpad Area</span>
+            </div>
+
+            <!-- Gyro Area (hidden by default) -->
+            <div class="gyro-area" id="gyro-area" style="display: none;">
+                <i class="fa-solid fa-mobile-screen-button"></i>
+                <span>Gyroscope Active</span>
+                <small style="color: rgba(255,255,255,0.4); font-size: 11px;">Gerakkan HP Anda</small>
+            </div>
+
+            <!-- Global Controls (Selalu ada di bawah) -->
+            <div class="utility-controls">
+                <div class="control-row">
+                    <button class="glass-btn action-btn" id="btn-click-left">Klik Kiri</button>
+                    <button class="glass-btn action-btn" id="btn-click-right">Klik Kanan</button>
+                </div>
+                <div class="control-row">
+                    <button class="glass-btn action-btn" id="btn-prev"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                    <button class="glass-btn action-btn" id="btn-next">Next <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+                <div class="control-row">
+                    <button class="glass-btn action-btn" id="btn-esc">Esc</button>
+                    <button class="glass-btn action-btn" id="btn-f5">F5 (Present)</button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
