@@ -52,12 +52,12 @@ let lastTapTime   = 0;
 let lastTouchEmit = 0;
 let accDx = 0;
 let accDy = 0;
-const TOUCH_MIN_INTERVAL = 8; // ms (~125Hz)
+const TOUCH_MIN_INTERVAL = 6; // ms — sesuai 144Hz display (~6.9ms/frame)
 
 // --- Gyro Emit Throttle (Absolute Mode) ---
 // Gyro hanya butuh posisi terbaru (latest-wins), cukup throttle tanpa akumulasi.
 let lastGyroEmit = 0;
-const GYRO_MIN_INTERVAL = 16; // ms (~60Hz) - sesuai refresh rate layar HP
+const GYRO_MIN_INTERVAL = 6; // ms — gyro hardware HP ~60Hz, tapi kirim setiap frame layar 144Hz
 
 // =============================================
 // Socket Events
