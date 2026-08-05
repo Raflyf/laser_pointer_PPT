@@ -1,294 +1,318 @@
 const socket = io();
 
-// UI Elements
-const statusText = document.getElementById('status-text');
-const btnNext = document.getElementById('btn-next');
-const btnPrev = document.getElementById('btn-prev');
-const btnLaserPPT = document.getElementById('btn-laser-ppt');
-const btnLaserGlobal = document.getElementById('btn-laser-global');
-const btnModeTouch = document.getElementById('btn-mode-touch');
-const btnModeGyro = document.getElementById('btn-mode-gyro');
-const touchpadArea = document.getElementById('touchpad-area');
-const gyroArea = document.getElementById('gyro-area');
+// =============================================
+// DOM References
+// =============================================
+const statusText      = document.getElementById('status-text');
+const btnNext         = document.getElementById('btn-next');
+const btnPrev         = document.getElementById('btn-prev');
+const btnLaserPPT     = document.getElementById('btn-laser-ppt');
+const btnLaserGlobal  = document.getElementById('btn-laser-global');
+const btnModeTouch    = document.getElementById('btn-mode-touch');
+const btnModeGyro     = document.getElementById('btn-mode-gyro');
+const touchpadArea    = document.getElementById('touchpad-area');
+const gyroArea        = document.getElementById('gyro-area');
+const btnClickLeft    = document.getElementById('btn-click-left');
+const btnClickRight   = document.getElementById('btn-click-right');
+const btnEsc          = document.getElementById('btn-esc');
+const btnF5           = document.getElementById('btn-f5');
+const btnRecenter     = document.getElementById('btn-recenter');
 
-// New Utility Buttons
-const btnClickLeft = document.getElementById('btn-click-left');
-const btnClickRight = document.getElementById('btn-click-right');
-const btnEsc = document.getElementById('btn-esc');
-const btnF5 = document.getElementById('btn-f5');
-
+// =============================================
 // State
-let isLaserActive = false;
-let activeLaserType = null; // 'ppt' or 'global'
-let currentMode = 'touch'; // 'touch' or 'gyro'
+// =============================================
+let isLaserActive    = false;
+let activeLaserType  = null;   // 'ppt' | 'global'
+let currentMode      = 'touch'; // 'touch' | 'gyro'
 
-// Gyroscope state
-let prevBeta = null;
-let prevGamma = null;
-let smoothedDx = 0;
-let smoothedDy = 0;
-const EMA_ALPHA = 0.12; // Diturunkan agar pergerakan lebih berat dan tidak licin (0.0 sangat lambat, 1.0 sangat responsif)
+// Gyroscope absolute state
+let centerBeta   = null;
+let centerGamma  = null;
+let lastRawBeta  = 0;
+let lastRawGamma = 0;
+let smoothAbsX   = 0;
+let smoothAbsY   = 0;
+const GYRO_EMA   = 0.15; // Kehalusan bidikan (0 = diam, 1 = mentah)
 
 // Touchpad state
-let isTouching = false;
-let lastTouchX = 0;
-let lastTouchY = 0;
+let isTouching    = false;
+let lastTouchX    = 0;
+let lastTouchY    = 0;
+let tapMoved      = false;
+let touchStartX   = 0;
+let touchStartY   = 0;
+let touchStartTime = 0;
+let tapTimeout    = null;
+let lastTapTime   = 0;
 
-// Socket Connection Status
+// =============================================
+// Socket Events
+// =============================================
 socket.on('connect', () => {
-    statusText.innerText = 'Status: Connected';
-    statusText.style.color = '#4ade80';
+    setStatus('Terhubung', 'connected');
 });
 
 socket.on('disconnect', () => {
-    statusText.innerText = 'Status: Disconnected';
-    statusText.style.color = '#ef4444';
+    setStatus('Terputus', '');
 });
 
-// PPT Status
-socket.on('ppt_status', (data) => {
-    if (data.active) {
-        statusText.innerText = 'Status: Connected (PPT Aktif)';
-        statusText.style.color = '#60a5fa';
+socket.on('ppt_status', ({ active }) => {
+    if (active) {
+        setStatus('Terhubung - PPT Aktif', 'ppt-active');
     } else {
-        statusText.innerText = 'Status: Connected (PPT Tidak Aktif)';
-        statusText.style.color = '#4ade80';
+        setStatus('Terhubung', 'connected');
     }
 });
 
-// --- Action Buttons ---
-btnNext.addEventListener('click', () => socket.emit('action', { command: 'next' }));
-btnPrev.addEventListener('click', () => socket.emit('action', { command: 'prev' }));
-btnClickLeft.addEventListener('click', () => socket.emit('action', { command: 'left_click' }));
-btnClickRight.addEventListener('click', () => socket.emit('action', { command: 'right_click' }));
-btnEsc.addEventListener('click', () => socket.emit('action', { command: 'esc' }));
-btnF5.addEventListener('click', () => socket.emit('action', { command: 'f5' }));
+function setStatus(text, cls) {
+    statusText.textContent = text;
+    statusText.className = 'status ' + cls;
+}
 
-// --- Laser Toggle (Click to Toggle) ---
-const toggleLaser = (type, btnElement) => {
-    if (isLaserActive && activeLaserType === type) {
-        // Matikan jika tipe yang sama diklik lagi
-        isLaserActive = false;
-        activeLaserType = null;
-        btnElement.classList.remove('active-laser');
-        socket.emit('laser_toggle', { state: false, type: type });
-        prevBeta = null;
-        prevGamma = null;
-    } else {
-        // Matikan tipe lain jika sedang aktif
-        if (isLaserActive) {
-            btnLaserPPT.classList.remove('active-laser');
-            btnLaserGlobal.classList.remove('active-laser');
-            socket.emit('laser_toggle', { state: false, type: activeLaserType });
-        }
-        // Aktifkan tipe baru
-        isLaserActive = true;
-        activeLaserType = type;
-        btnElement.classList.add('active-laser');
-        socket.emit('laser_toggle', { state: true, type: type });
-        prevBeta = null; // Reset prev gyro to avoid jump
-        prevGamma = null;
-    }
+// =============================================
+// Action Buttons
+// =============================================
+const actions = {
+    'next':        btnNext,
+    'prev':        btnPrev,
+    'left_click':  btnClickLeft,
+    'right_click': btnClickRight,
+    'esc':         btnEsc,
+    'f5':          btnF5,
 };
 
-btnLaserPPT.addEventListener('click', () => toggleLaser('ppt', btnLaserPPT));
-btnLaserGlobal.addEventListener('click', () => toggleLaser('global', btnLaserGlobal));
+Object.entries(actions).forEach(([command, btn]) => {
+    btn.addEventListener('click', () => socket.emit('action', { command }));
+});
 
-// --- Mode Switching ---
+// =============================================
+// Laser Toggle
+// =============================================
+function setLaserOff(type) {
+    isLaserActive   = false;
+    activeLaserType = null;
+    socket.emit('laser_toggle', { state: false, type });
+    resetLaserState();
+}
+
+function setLaserOn(type, btnEl) {
+    if (isLaserActive) {
+        // Matikan laser yang sedang aktif dulu
+        [btnLaserPPT, btnLaserGlobal].forEach(b => b.setAttribute('aria-pressed', 'false'));
+        socket.emit('laser_toggle', { state: false, type: activeLaserType });
+    }
+    isLaserActive   = true;
+    activeLaserType = type;
+    btnEl.setAttribute('aria-pressed', 'true');
+    socket.emit('laser_toggle', { state: true, type });
+    resetLaserState();
+}
+
+function resetLaserState() {
+    // Reset gyro absolut agar tidak lompat saat laser diaktifkan ulang
+    centerBeta  = null;
+    centerGamma = null;
+    smoothAbsX  = 0;
+    smoothAbsY  = 0;
+}
+
+btnLaserPPT.addEventListener('click', () => {
+    if (isLaserActive && activeLaserType === 'ppt') {
+        btnLaserPPT.setAttribute('aria-pressed', 'false');
+        setLaserOff('ppt');
+    } else {
+        [btnLaserPPT, btnLaserGlobal].forEach(b => b.setAttribute('aria-pressed', 'false'));
+        setLaserOn('ppt', btnLaserPPT);
+    }
+});
+
+btnLaserGlobal.addEventListener('click', () => {
+    if (isLaserActive && activeLaserType === 'global') {
+        btnLaserGlobal.setAttribute('aria-pressed', 'false');
+        setLaserOff('global');
+    } else {
+        [btnLaserPPT, btnLaserGlobal].forEach(b => b.setAttribute('aria-pressed', 'false'));
+        setLaserOn('global', btnLaserGlobal);
+    }
+});
+
+// =============================================
+// Mode Switching
+// =============================================
 btnModeTouch.addEventListener('click', () => {
     currentMode = 'touch';
     btnModeTouch.classList.add('active');
+    btnModeTouch.setAttribute('aria-pressed', 'true');
     btnModeGyro.classList.remove('active');
+    btnModeGyro.setAttribute('aria-pressed', 'false');
     touchpadArea.style.display = 'flex';
+    touchpadArea.removeAttribute('aria-hidden');
     gyroArea.style.display = 'none';
+    gyroArea.setAttribute('aria-hidden', 'true');
 });
 
 btnModeGyro.addEventListener('click', async () => {
-    // Request iOS 13+ permission for DeviceOrientation
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+ permission
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
         try {
-            const permissionState = await DeviceOrientationEvent.requestPermission();
-            if (permissionState !== 'granted') {
-                alert('Izin sensor ditolak.');
+            const state = await DeviceOrientationEvent.requestPermission();
+            if (state !== 'granted') {
+                alert('Izin sensor gyroscope ditolak.');
                 return;
             }
-        } catch (error) {
-            console.error(error);
-            alert('Tidak bisa meminta izin sensor. Pastikan mengakses via HTTPS.');
+        } catch (err) {
+            alert('Akses sensor memerlukan HTTPS.');
             return;
         }
     }
-    
+
     currentMode = 'gyro';
     btnModeGyro.classList.add('active');
+    btnModeGyro.setAttribute('aria-pressed', 'true');
     btnModeTouch.classList.remove('active');
+    btnModeTouch.setAttribute('aria-pressed', 'false');
     touchpadArea.style.display = 'none';
+    touchpadArea.setAttribute('aria-hidden', 'true');
     gyroArea.style.display = 'flex';
-    prevBeta = null;
-    prevGamma = null;
+    gyroArea.removeAttribute('aria-hidden');
+    resetLaserState();
 });
 
-// --- Touchpad Logic ---
-let tapTimeout = null;
-let lastTapTime = 0;
-let tapMoved = false;
-let touchStartX = 0;
-let touchStartY = 0;
-let touchStartTime = 0;
-
+// =============================================
+// Touchpad - Gerakan
+// =============================================
 touchpadArea.addEventListener('touchstart', (e) => {
     e.preventDefault();
     isTouching = true;
-    const touch = e.touches[0];
-    lastTouchX = touch.clientX;
-    lastTouchY = touch.clientY;
-    
-    touchStartX = touch.clientX;
-    touchStartY = touch.clientY;
+    const t = e.touches[0];
+    lastTouchX = touchStartX = t.clientX;
+    lastTouchY = touchStartY = t.clientY;
     touchStartTime = Date.now();
     tapMoved = false;
-}, {passive: false});
+    touchpadArea.classList.add('active-drag');
+}, { passive: false });
 
 touchpadArea.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    // Touchpad selalu merespons gerakan (always on) selama mode touch terpilih
     if (!isTouching || currentMode !== 'touch') return;
-    
-    const touch = e.touches[0];
-    const dx = touch.clientX - lastTouchX;
-    const dy = touch.clientY - lastTouchY;
-    
-    socket.emit('laser_move', { dx: dx, dy: dy });
-    
-    lastTouchX = touch.clientX;
-    lastTouchY = touch.clientY;
-    
-    // Jika bergeser lebih dari 5 pixel, ini adalah pergerakan mouse, BUKAN tap/klik
-    if (Math.abs(touch.clientX - touchStartX) > 5 || Math.abs(touch.clientY - touchStartY) > 5) {
+
+    const t = e.touches[0];
+    const dx = t.clientX - lastTouchX;
+    const dy = t.clientY - lastTouchY;
+
+    socket.emit('laser_move', { dx, dy });
+
+    lastTouchX = t.clientX;
+    lastTouchY = t.clientY;
+
+    if (Math.abs(t.clientX - touchStartX) > 6 || Math.abs(t.clientY - touchStartY) > 6) {
         tapMoved = true;
     }
-}, {passive: false});
+}, { passive: false });
 
-touchpadArea.addEventListener('touchend', (e) => { 
+touchpadArea.addEventListener('touchend', (e) => {
     e.preventDefault();
-    isTouching = false; 
-    
+    isTouching = false;
+    touchpadArea.classList.remove('active-drag');
+
     if (currentMode === 'touch' && !tapMoved) {
-        const touchDuration = Date.now() - touchStartTime;
-        
-        // Mencegah long-press (tahan lama) dianggap sebagai tap/klik
-        if (touchDuration < 250) {
-            const currentTime = Date.now();
-            
-            // Jeda antar tap kurang dari 300ms = Double Tap (Klik Kanan)
-            if (currentTime - lastTapTime < 300) {
+        const duration = Date.now() - touchStartTime;
+        if (duration < 250) {
+            const now = Date.now();
+            if (now - lastTapTime < 320) {
+                // Double tap = klik kanan
                 clearTimeout(tapTimeout);
-                lastTapTime = 0; // Reset agar klik ke-3 tidak terhitung lagi
+                lastTapTime = 0;
                 socket.emit('action', { command: 'right_click' });
-                showTouchpadFeedback("Klik Kanan");
+                showTapFeedback('Klik Kanan', touchpadArea);
             } else {
-                // Tunggu 300ms, jika tidak ada tap ke-2, eksekusi Single Tap (Klik Kiri)
-                lastTapTime = currentTime;
+                // Tunggu untuk konfirmasi double tap
+                lastTapTime = now;
                 tapTimeout = setTimeout(() => {
                     socket.emit('action', { command: 'left_click' });
-                    showTouchpadFeedback("Klik Kiri");
-                }, 300);
+                    showTapFeedback('Klik Kiri', touchpadArea);
+                }, 320);
             }
         }
     }
+}, { passive: false });
+
+touchpadArea.addEventListener('touchcancel', () => {
+    isTouching = false;
+    touchpadArea.classList.remove('active-drag');
 });
 
-touchpadArea.addEventListener('touchcancel', () => { isTouching = false; });
-
-function showTouchpadFeedback(text) {
-    const feedback = document.createElement('div');
-    feedback.innerText = text;
-    feedback.style.position = 'absolute';
-    feedback.style.color = '#fff';
-    feedback.style.background = 'rgba(59, 130, 246, 0.9)';
-    feedback.style.padding = '6px 14px';
-    feedback.style.borderRadius = '8px';
-    feedback.style.fontSize = '12px';
-    feedback.style.fontWeight = 'bold';
-    feedback.style.pointerEvents = 'none';
-    feedback.style.transition = 'opacity 0.8s ease';
-    feedback.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
-    feedback.style.zIndex = '100';
-    
-    touchpadArea.style.position = 'relative'; 
-    touchpadArea.appendChild(feedback);
-    
-    setTimeout(() => {
-        feedback.style.opacity = '0';
-    }, 200);
-    
-    setTimeout(() => feedback.remove(), 1000);
+// =============================================
+// Gyroscope Recenter
+// =============================================
+if (btnRecenter) {
+    btnRecenter.addEventListener('click', () => {
+        centerBeta  = lastRawBeta;
+        centerGamma = lastRawGamma;
+        smoothAbsX  = 0;
+        smoothAbsY  = 0;
+        showTapFeedback('Tengah Terkunci', gyroArea, true);
+    });
 }
 
-// --- Gyroscope Logic ---
+// =============================================
+// Gyroscope - Absolute Mode
+// =============================================
 window.addEventListener('deviceorientation', (e) => {
-    // MENCEGAH BUG "TOO MANY PACKETS" (CRASH SERVER):
-    // Jangan kirim paket gyro jika browser/tab sedang diminimize atau HP dilock.
     if (document.hidden) return;
-    
     if (currentMode !== 'gyro' || !isLaserActive) return;
-    
-    let alpha = e.alpha;
-    let beta = e.beta;
-    let gamma = e.gamma;
-    
-    if (prevBeta !== null && prevGamma !== null) {
-        let dBeta = beta - prevBeta;
-        let dGamma = gamma - prevGamma;
-        
-        // Fix 360 wrap-around
-        if (dGamma > 180) dGamma -= 360;
-        if (dGamma < -180) dGamma += 360;
-        if (dBeta > 180) dBeta -= 360;
-        if (dBeta < -180) dBeta += 360;
-        
-        // --- ANTI-GIMBAL-LOCK / JUMP FILTER ---
-        // Jika perbedaan rotasi dalam hitungan milidetik sangat ekstrem (>30 derajat),
-        // ini secara fisik mustahil untuk tangan manusia. Ini adalah efek 'Gimbal Lock'
-        // saat HP berpindah kutub (vertikal ke horizontal). Abaikan frame ini.
-        if (Math.abs(dGamma) > 30 || Math.abs(dBeta) > 30) {
-            prevBeta = beta;
-            prevGamma = gamma;
-            return;
-        }
 
-        // Sensitivitas diturunkan agar tidak terlalu licin
-        const gyroSensitivity = 7.0; 
-        
-        let rawDx = dGamma * gyroSensitivity;
-        let rawDy = -dBeta * gyroSensitivity; // Invert Y
-        
-        // --- DEADZONE FILTER ---
-        // Jika pergerakan sangat kecil (getaran tangan), abaikan untuk mencegah kursor jalan sendiri
-        if (Math.abs(rawDx) < 0.8) rawDx = 0;
-        if (Math.abs(rawDy) < 0.8) rawDy = 0;
-        
-        // --- EXPONENTIAL MOVING AVERAGE (EMA) ---
-        // Menghilangkan getaran tremor tangan, membuat pergerakan mulus seperti mouse
-        smoothedDx = (EMA_ALPHA * rawDx) + ((1 - EMA_ALPHA) * smoothedDx);
-        smoothedDy = (EMA_ALPHA * rawDy) + ((1 - EMA_ALPHA) * smoothedDy);
-        
-        // Kirim data jika kursor benar-benar bergerak
-        if (Math.abs(smoothedDx) > 0.02 || Math.abs(smoothedDy) > 0.02) {
-            socket.emit('laser_move', { dx: smoothedDx, dy: smoothedDy });
-        }
+    const beta  = e.beta;
+    const gamma = e.gamma;
+
+    lastRawBeta  = beta;
+    lastRawGamma = gamma;
+
+    // Auto-set titik tengah saat pertama kali aktif
+    if (centerBeta === null) {
+        centerBeta  = beta;
+        centerGamma = gamma;
+        return;
     }
-    
-    prevBeta = beta;
-    prevGamma = gamma;
+
+    let dBeta  = beta  - centerBeta;
+    let dGamma = gamma - centerGamma;
+
+    // Normalisasi wrap-around
+    if (dGamma >  180) dGamma -= 360;
+    if (dGamma < -180) dGamma += 360;
+    if (dBeta  >  180) dBeta  -= 360;
+    if (dBeta  < -180) dBeta  += 360;
+
+    // EMA smoothing pada sudut absolut
+    smoothAbsX = GYRO_EMA * dGamma + (1 - GYRO_EMA) * smoothAbsX;
+    smoothAbsY = GYRO_EMA * dBeta  + (1 - GYRO_EMA) * smoothAbsY;
+
+    socket.emit('laser_move', { absolute: true, dGamma: smoothAbsX, dBeta: smoothAbsY });
 });
 
-// Reset gyro prev variables ketika kembali ke layar
-document.addEventListener("visibilitychange", () => {
+// Reset center saat tab kembali aktif dari background
+document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-        prevBeta = null;
-        prevGamma = null;
-        smoothedDx = 0;
-        smoothedDy = 0;
+        centerBeta  = null;
+        centerGamma = null;
     }
 });
+
+// =============================================
+// Utility: Tap Feedback Toast
+// =============================================
+function showTapFeedback(text, container, isSuccess = false) {
+    const el = document.createElement('span');
+    el.className = 'tap-feedback' + (isSuccess ? ' recenter-feedback' : '');
+    el.textContent = text;
+
+    container.appendChild(el);
+
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => el.classList.add('fade'));
+    });
+
+    setTimeout(() => el.remove(), 700);
+}

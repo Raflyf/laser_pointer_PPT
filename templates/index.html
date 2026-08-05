@@ -1,71 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="Pointer PPT - Kendalikan presentasi dari HP Anda menggunakan touchpad atau gyroscope.">
+    <meta name="theme-color" content="#080c14">
     <title>Pointer PPT</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
+    <main class="shell" role="main">
+        <div class="card">
 
-    <div class="main-container">
-        <div class="glass-panel">
-            
-            <div style="text-align: center;">
-                <h1 class="app-title">Pointer PPT</h1>
-                <p id="status-text" style="font-size: 12px; color: #ef4444;">Status: Disconnected</p>
-            </div>
-            
-            <div class="mode-toggles">
-                <button class="glass-btn active" id="btn-mode-touch">Touchpad</button>
-                <button class="glass-btn" id="btn-mode-gyro">Gyroscope</button>
-            </div>
+            <header class="card-header">
+                <h1 class="title">Pointer PPT</h1>
+                <p id="status-text" class="status" aria-live="polite" aria-atomic="true">Menghubungkan...</p>
+            </header>
 
-            <div>
-                <p class="section-title">Mode Laser</p>
-                <div class="laser-toggles">
-                    <button class="glass-btn laser-btn" id="btn-laser-ppt">
-                        <i class="fa-solid fa-file-powerpoint"></i> PPT
+            <section aria-label="Pilihan mode input">
+                <div class="segment" role="group" aria-label="Mode Input">
+                    <button type="button" class="seg-btn active" id="btn-mode-touch" aria-pressed="true">Touchpad</button>
+                    <button type="button" class="seg-btn" id="btn-mode-gyro" aria-pressed="false">Gyroscope</button>
+                </div>
+            </section>
+
+            <section aria-label="Mode laser pointer">
+                <p class="label">Mode Laser</p>
+                <div class="laser-row">
+                    <button type="button" class="laser-btn" id="btn-laser-ppt" aria-pressed="false">
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        PPT
                     </button>
-                    <button class="glass-btn laser-btn" id="btn-laser-global">
-                        <i class="fa-solid fa-globe"></i> Global
+                    <button type="button" class="laser-btn" id="btn-laser-global" aria-pressed="false">
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                        Global
                     </button>
                 </div>
+            </section>
+
+            <!-- Area Touchpad -->
+            <div class="touch-area" id="touchpad-area" role="application" aria-label="Area touchpad. Geser untuk menggerakkan kursor. Ketuk sekali untuk klik kiri. Ketuk dua kali untuk klik kanan.">
+                <span class="touch-hint">Geser untuk menggerakkan kursor</span>
+                <span class="touch-sub">Ketuk 1x Klik Kiri &middot; Ketuk 2x Klik Kanan</span>
             </div>
 
-            <!-- Touchpad Area -->
-            <div class="touchpad-area" id="touchpad-area">
-                <span id="touchpad-text">Touchpad Area</span>
+            <!-- Area Gyroscope -->
+            <div class="gyro-area" id="gyro-area" aria-hidden="true">
+                <svg aria-hidden="true" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a10 10 0 1 0 0 20"/><path d="M12 2c-4 4-4 12 0 20M12 2c4 4 4 12 0 20"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+                <span>Gyroscope Aktif</span>
+                <button type="button" class="recenter-btn" id="btn-recenter">Bidik Tengah</button>
             </div>
 
-            <!-- Gyro Area (hidden by default) -->
-            <div class="gyro-area" id="gyro-area" style="display: none;">
-                <i class="fa-solid fa-mobile-screen-button"></i>
-                <span>Gyroscope Active</span>
-                <small style="color: rgba(255,255,255,0.4); font-size: 11px;">Gerakkan HP Anda</small>
-            </div>
+            <!-- Kontrol Universal -->
+            <section class="controls" aria-label="Kontrol presentasi">
+                <div class="ctrl-row">
+                    <button type="button" class="ctrl-btn" id="btn-click-left" aria-label="Klik kiri">Klik Kiri</button>
+                    <button type="button" class="ctrl-btn" id="btn-click-right" aria-label="Klik kanan">Klik Kanan</button>
+                </div>
+                <div class="ctrl-row">
+                    <button type="button" class="ctrl-btn nav-btn" id="btn-prev" aria-label="Slide sebelumnya">
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                        Prev
+                    </button>
+                    <button type="button" class="ctrl-btn nav-btn" id="btn-next" aria-label="Slide berikutnya">
+                        Next
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
+                </div>
+                <div class="ctrl-row">
+                    <button type="button" class="ctrl-btn" id="btn-esc" aria-label="Tekan Esc">Esc</button>
+                    <button type="button" class="ctrl-btn accent-btn" id="btn-f5" aria-label="Mulai presentasi (F5)">Mulai (F5)</button>
+                </div>
+            </section>
 
-            <!-- Global Controls (Selalu ada di bawah) -->
-            <div class="utility-controls">
-                <div class="control-row">
-                    <button class="glass-btn action-btn" id="btn-click-left">Klik Kiri</button>
-                    <button class="glass-btn action-btn" id="btn-click-right">Klik Kanan</button>
-                </div>
-                <div class="control-row">
-                    <button class="glass-btn action-btn" id="btn-prev"><i class="fa-solid fa-chevron-left"></i> Prev</button>
-                    <button class="glass-btn action-btn" id="btn-next">Next <i class="fa-solid fa-chevron-right"></i></button>
-                </div>
-                <div class="control-row">
-                    <button class="glass-btn action-btn" id="btn-esc">Esc</button>
-                    <button class="glass-btn action-btn" id="btn-f5">F5 (Present)</button>
-                </div>
-            </div>
-            
         </div>
-    </div>
+    </main>
 
-    <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
