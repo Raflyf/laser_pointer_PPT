@@ -209,13 +209,14 @@ if __name__ == '__main__':
     import atexit
     atexit.register(cleanup)
 
-    # Sapu sisa laser_overlay.py dari sesi sebelumnya (anti ghost process saat terminal ditutup paksa)
+    # Sapu sisa ghost process dari sesi sebelumnya (laser_overlay.py & ngrok.exe)
     try:
         import psutil
         for proc in psutil.process_iter(['name', 'cmdline']):
             try:
                 cmd = proc.info.get('cmdline') or []
-                if any('laser_overlay.py' in c for c in cmd):
+                name = (proc.info.get('name') or '')
+                if 'ngrok' in name or any('laser_overlay.py' in c for c in cmd):
                     proc.kill()
             except Exception:
                 pass
