@@ -337,8 +337,8 @@ if __name__ == '__main__':
     # karena ngrok menghentikan TLS di edge dan mengirim HTTP polos ke localhost.
     def run_http_for_ngrok():
         socketio.run(app, host='127.0.0.1', port=NGROK_LOCAL_PORT,
-                     debug=False, allow_unsafe_werkzeug=True, use_reloader=False)
+                     debug=False, allow_unsafe_werkzeug=True, use_reloader=False, log=False)
 
     threading.Thread(target=run_http_for_ngrok, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=port, debug=False,
-                 allow_unsafe_werkzeug=True, ssl_context='adhoc')
+                 allow_unsafe_werkzeug=True, ssl_context='adhoc', log=False)
