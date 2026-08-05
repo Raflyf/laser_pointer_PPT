@@ -61,10 +61,15 @@ def _cursor_worker():
             continue
 
 def _apply_cursor_move(data):
+    if not isinstance(data, dict):
+        return
     is_absolute = data.get('absolute', False)
     if is_absolute:
         dGamma = data.get('dGamma', 0)
         dBeta  = data.get('dBeta', 0)
+        # Hindari snap ke tengah layar saat gyro netral / baru aktif
+        if abs(dGamma) < 1.0 and abs(dBeta) < 1.0:
+            return
         FOV_X = 25.0
         FOV_Y = 20.0
         ratio_x = max(-1.0, min(1.0, dGamma / FOV_X))
@@ -99,9 +104,7 @@ def check_ppt_status():
     while True:
         try:
             windows = gw.getWindowsWithTitle('PowerPoint Slide Show')
-            if not windows:
-                windows = gw.getWindowsWithTitle('PowerPoint')
-            currently_active = any('PowerPoint' in w.title for w in windows)
+            currently_active = bool(windows) and any('Slide Show' in w.title for w in windows)
             if currently_active != is_ppt_active:
                 is_ppt_active = currently_active
                 socketio.emit('ppt_status', {'active': is_ppt_active})
@@ -119,6 +122,8 @@ def handle_connect():
 
 @socketio.on('action')
 def handle_action(data):
+    if not isinstance(data, dict):
+        return
     command = data.get('command')
     actions = {
         'next':        lambda: pyautogui.press('right'),
@@ -135,6 +140,8 @@ def handle_action(data):
 @socketio.on('laser_toggle')
 def handle_laser_toggle(data):
     global laser_process
+    if not isinstance(data, dict):
+        return
     state = data.get('state')
     laser_type = data.get('type')
 
@@ -162,6 +169,8 @@ def handle_laser_toggle(data):
 
 @socketio.on('laser_move')
 def handle_laser_move(data):
+    if not isinstance(data, dict):
+        return
     # Handler ini langsung mengembalikan kontrol ke SocketIO.
     # Proses cursor dilakukan oleh _cursor_worker di thread terpisah.
     # Jika queue penuh (server tertinggal), buang event lama dan pakai yang terbaru.
@@ -211,8 +220,6 @@ if __name__ == '__main__':
         print(f"NGROK URL : {ngrok_url}")
     print("=" * 50 + "\n")
 
-    primary_url = ngrok_url if ngrok_url else local_url
-    
     # Tampilkan popup QR Code via Tkinter (bukan browser)
     def show_qr_popup():
         time.sleep(1.5)  # Tunggu server siap

@@ -33,7 +33,8 @@ let lastRawBeta  = 0;
 let lastRawGamma = 0;
 let smoothAbsX   = 0;
 let smoothAbsY   = 0;
-const GYRO_EMA   = 0.15;
+const GYRO_EMA      = 0.20;
+const GYRO_DEADZONE = 1.2;  // derajat, matikan jitter mikro saat HP diam
 
 // Touchpad state
 let isTouching    = false;
@@ -220,7 +221,9 @@ touchpadArea.addEventListener('touchmove', (e) => {
 
     const now = performance.now();
     if (now - lastTouchEmit >= TOUCH_MIN_INTERVAL) {
-        socket.emit('laser_move', { dx: accDx, dy: accDy });
+        if (accDx !== 0 || accDy !== 0) {
+            socket.emit('laser_move', { dx: accDx, dy: accDy });
+        }
         accDx = 0;
         accDy = 0;
         lastTouchEmit = now;
@@ -307,6 +310,10 @@ window.addEventListener('deviceorientation', (e) => {
     if (dGamma < -180) dGamma += 360;
     if (dBeta  >  180) dBeta  -= 360;
     if (dBeta  < -180) dBeta  += 360;
+
+    // Deadzone: abaikan mikro-movemen sensor saat HP diam (anti-jitter)
+    if (Math.abs(dGamma) < GYRO_DEADZONE) dGamma = 0;
+    if (Math.abs(dBeta)  < GYRO_DEADZONE) dBeta  = 0;
 
     // EMA smoothing pada sudut absolut
     smoothAbsX = GYRO_EMA * dGamma + (1 - GYRO_EMA) * smoothAbsX;

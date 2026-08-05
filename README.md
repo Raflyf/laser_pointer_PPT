@@ -21,3 +21,14 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 ## Teknologi
 - **Backend:** Python, Flask, Flask-SocketIO, PyAutoGUI, PyGetWindow.
 - **Frontend:** HTML5, CSS3 (Glassmorphism), Vanilla JS (Socket.io-client, DeviceOrientationEvent).
+
+## Changelog
+
+### 2026-08-05 — Audit & Perbaikan Logika
+- **Fix:** Deteksi status PPT hanya menyala saat jendela *PowerPoint Slide Show* benar-benar terbuka (sebelumnya mode editing terhitung "aktif").
+- **Fix:** Hilangkan variabel mati `primary_url`.
+- **Fix:** Validasi tipe payload di semua handler Socket.IO (`action`, `laser_toggle`, `laser_move`) — payload tak valid tidak lagi memicu exception.
+- **Fix:** Kursor tidak lagi tersnap ke tengah layar saat gyro baru aktif/netral.
+- **Improvisasi:** Deadzone sensor gyro (1.2°) untuk membunuh jitter mikro saat HP diam.
+- **Improvisasi:** EMA gyro dinaikkan `0.15` -> `0.20` agar pelacakan lebih responsif.
+- **Improvisasi:** Event `laser_move` tidak lagi dikirim saat delta nol (jari diam) — mengurangi beban jaringan dan gerakan bergetar.
