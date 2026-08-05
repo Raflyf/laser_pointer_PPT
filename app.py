@@ -176,7 +176,7 @@ if __name__ == '__main__':
 
     ip = get_local_ip()
     port = 5000
-    local_url = f"http://{ip}:{port}"
+    local_url = f"https://{ip}:{port}"  # HTTPS agar gyroscope aktif di local IP
 
     print("\n" + "=" * 50)
     print("Membuka tunnel Ngrok...")
@@ -265,4 +265,9 @@ if __name__ == '__main__':
     
     threading.Thread(target=show_qr_popup, daemon=True).start()
 
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
+    print("\nPENTING: Saat membuka Local IP di HP, browser akan menampilkan peringatan keamanan.")
+    print("Pilih 'Lanjutkan' atau 'Advanced' -> 'Proceed to ...(unsafe)' untuk membuka halaman.")
+    print("Hal ini normal untuk self-signed certificate dan AMAN digunakan di jaringan lokal.\n")
+
+    socketio.run(app, host='0.0.0.0', port=port, debug=False,
+                 allow_unsafe_werkzeug=True, ssl_context='adhoc')
