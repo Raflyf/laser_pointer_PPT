@@ -335,10 +335,14 @@ if __name__ == '__main__':
     # Backend HTTPS (adhoc) untuk Local IP — gyroscope butuh secure context.
     # Backend HTTP polos di 127.0.0.1:5001 khusus tunnel ngrok,
     # karena ngrok menghentikan TLS di edge dan mengirim HTTP polos ke localhost.
+    import logging
+    logging.getLogger('werkzeug').setLevel(logging.ERROR)
+    logging.getLogger('socketio').setLevel(logging.ERROR)
+
     def run_http_for_ngrok():
         socketio.run(app, host='127.0.0.1', port=NGROK_LOCAL_PORT,
-                     debug=False, allow_unsafe_werkzeug=True, use_reloader=False, log=False)
+                     debug=False, allow_unsafe_werkzeug=True, use_reloader=False)
 
     threading.Thread(target=run_http_for_ngrok, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=port, debug=False,
-                 allow_unsafe_werkzeug=True, ssl_context='adhoc', log=False)
+                 allow_unsafe_werkzeug=True, ssl_context='adhoc')

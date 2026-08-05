@@ -25,7 +25,7 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 ## Changelog
 
 ### 2026-08-05 — Redam banner ganda di terminal
-- **Fix:** Dua listener (`socketio.run` ganda) mencetak dua baris banner werkzeug `* Running on`. Ditambahkan `log=False` di kedua listener — terminal bersih.
+- **Fix:** Dua listener (`socketio.run` ganda) mencetak banner werkzeug `* Running on` dua kali. Banner diredam dengan menaikkan level logger `werkzeug` & `socketio` ke `ERROR` (parameter `log` tidak didukung Werkzeug 3.x).
 
 ### 2026-08-05 — Fix Ngrok ERR_NGROK_3004 (TLS mismatch)
 - **Fix:** Server HTTPS-only (`ssl_context='adhoc'`) tidak kompatibel dengan tunnel ngrok yang mengirim HTTP polos ke localhost → gateway error `ERR_NGROK_3004`.
