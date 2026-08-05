@@ -24,7 +24,15 @@ _user32 = ctypes.windll.user32
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'pointer-secret-key'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# allow_upgrades=False + ping_timeout tinggi agar koneksi WebSocket stabil saat idle
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*",
+    async_mode='threading',
+    ping_timeout=60,
+    ping_interval=25,
+    max_http_buffer_size=1_000_000,
+)
 
 # Konfigurasi pyautogui
 pyautogui.FAILSAFE = False

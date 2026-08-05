@@ -1,4 +1,5 @@
-const socket = io();
+// Paksa WebSocket murni — skip HTTP long-polling yang menyebabkan latensi 50-100ms
+const socket = io({ transports: ['websocket'], upgrade: false });
 
 // =============================================
 // DOM References
@@ -32,7 +33,7 @@ let lastRawBeta  = 0;
 let lastRawGamma = 0;
 let smoothAbsX   = 0;
 let smoothAbsY   = 0;
-const GYRO_EMA   = 0.15; // Kehalusan bidikan (0 = diam, 1 = mentah)
+const GYRO_EMA   = 0.15;
 
 // Touchpad state
 let isTouching    = false;
@@ -44,6 +45,26 @@ let touchStartY   = 0;
 let touchStartTime = 0;
 let tapTimeout    = null;
 let lastTapTime   = 0;
+
+// --- RAF Move Batching ---
+// Semua pergerakan dikumpulkan dan dikirim 1x per frame animasi (~16ms)
+// Ini mencegah buffer jaringan meluap dan menghilangkan frame drop
+let pendingMove = null;  // { dx, dy } atau { absolute:true, dGamma, dBeta }
+let rafScheduled = false;
+
+function scheduleMoveEmit(payload) {
+    pendingMove = payload;
+    if (!rafScheduled) {
+        rafScheduled = true;
+        requestAnimationFrame(() => {
+            if (pendingMove !== null) {
+                socket.emit('laser_move', pendingMove);
+                pendingMove = null;
+            }
+            rafScheduled = false;
+        });
+    }
+}
 
 // =============================================
 // Socket Events
@@ -201,7 +222,7 @@ touchpadArea.addEventListener('touchmove', (e) => {
     const dx = t.clientX - lastTouchX;
     const dy = t.clientY - lastTouchY;
 
-    socket.emit('laser_move', { dx, dy });
+    scheduleMoveEmit({ dx, dy });
 
     lastTouchX = t.clientX;
     lastTouchY = t.clientY;
@@ -289,7 +310,7 @@ window.addEventListener('deviceorientation', (e) => {
     smoothAbsX = GYRO_EMA * dGamma + (1 - GYRO_EMA) * smoothAbsX;
     smoothAbsY = GYRO_EMA * dBeta  + (1 - GYRO_EMA) * smoothAbsY;
 
-    socket.emit('laser_move', { absolute: true, dGamma: smoothAbsX, dBeta: smoothAbsY });
+    scheduleMoveEmit({ absolute: true, dGamma: smoothAbsX, dBeta: smoothAbsY });
 });
 
 // Reset center saat tab kembali aktif dari background
