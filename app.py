@@ -6,11 +6,15 @@ import socket
 import signal
 import threading
 import time
+import tkinter as tk
+from PIL import Image, ImageTk
+import io
 import pygetwindow as gw
 import pyautogui
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO
 from pyngrok import ngrok
+import qrcode
 
 # --- Struktur ctypes di level modul (bukan di dalam handler) ---
 class POINT(ctypes.Structure):
@@ -181,14 +185,76 @@ if __name__ == '__main__':
     print("=" * 50 + "\n")
 
     primary_url = ngrok_url if ngrok_url else local_url
-    try:
-        import qrcode
-        import webbrowser
-        img = qrcode.make(primary_url)
-        qr_path = os.path.join(app.root_path, 'static', 'qr.png')
-        img.save(qr_path)
-        threading.Timer(2.0, lambda: webbrowser.open(f"http://127.0.0.1:{port}/static/qr.png")).start()
-    except Exception:
-        print("Gagal membuat QR Code otomatis.")
+    
+    # Tampilkan popup QR Code via Tkinter (bukan browser)
+    def show_qr_popup():
+        time.sleep(1.5)  # Tunggu server siap
+        
+        def make_qr_image(url, size=200):
+            qr = qrcode.QRCode(box_size=4, border=2)
+            qr.add_data(url)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+            img = img.resize((size, size), Image.LANCZOS)
+            return img
+        
+        root_qr = tk.Tk()
+        root_qr.title("Pointer PPT - QR Code")
+        root_qr.configure(bg="#0f1117")
+        root_qr.resizable(False, False)
+        
+        # Pusatkan window
+        root_qr.update_idletasks()
+        sw = root_qr.winfo_screenwidth()
+        sh = root_qr.winfo_screenheight()
+        
+        frame = tk.Frame(root_qr, bg="#0f1117", padx=24, pady=20)
+        frame.pack()
+        
+        tk.Label(frame, text="Scan untuk membuka Pointer PPT",
+                 bg="#0f1117", fg="#ffffff",
+                 font=("Segoe UI", 12, "bold")).pack(pady=(0, 16))
+        
+        cols = tk.Frame(frame, bg="#0f1117")
+        cols.pack()
+        
+        def add_qr_column(parent, label_text, url, color):
+            col = tk.Frame(parent, bg="#0f1117", padx=12)
+            col.pack(side=tk.LEFT)
+            
+            try:
+                img = make_qr_image(url)
+                photo = ImageTk.PhotoImage(img)
+                lbl_img = tk.Label(col, image=photo, bg="white", padx=4, pady=4)
+                lbl_img.image = photo  # Cegah GC
+                lbl_img.pack()
+            except Exception:
+                tk.Label(col, text="[QR Error]", bg="#0f1117", fg="red").pack()
+            
+            tk.Label(col, text=label_text, bg="#0f1117", fg=color,
+                     font=("Segoe UI", 10, "bold")).pack(pady=(8, 2))
+            tk.Label(col, text=url, bg="#0f1117", fg="#888888",
+                     font=("Segoe UI", 7), wraplength=200).pack()
+        
+        if ngrok_url:
+            add_qr_column(cols, "Ngrok (Internet)", ngrok_url, "#60a5fa")
+        
+        add_qr_column(cols, "Local IP (WiFi sama)", local_url, "#4ade80")
+        
+        tk.Label(frame, text="Tutup jendela ini setelah scan",
+                 bg="#0f1117", fg="#555555",
+                 font=("Segoe UI", 9)).pack(pady=(16, 0))
+        
+        # Pusatkan window setelah konten dirender
+        root_qr.update_idletasks()
+        w = root_qr.winfo_width()
+        h = root_qr.winfo_height()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        root_qr.geometry(f"+{x}+{y}")
+        root_qr.attributes("-topmost", True)
+        root_qr.mainloop()
+    
+    threading.Thread(target=show_qr_popup, daemon=True).start()
 
     socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
