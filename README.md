@@ -24,6 +24,11 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 
 ## Changelog
 
+### 2026-08-05 — Fix Gyro "Stuck" di Tengah Layar
+- **Fix:** Hilangkan guard backend `<1.0°` yang memblokir pergerakan — pointer tidak lagi "menempel" saat melintasi/berhenti di tengah layar.
+- **Fix:** Deadzone dipindah dari input mentah ke hasil akhir EMA dan diturunkan `1.2°` -> `0.4°` — meredam wobble mikro tanpa mengunci pointer.
+- **Fix:** Tombol **Bidik Tengah** kini langsung mengirim `dGamma=0, dBeta=0` sehingga kursor pindah ke tengah seketika saat diklik.
+
 ### 2026-08-05 — Audit & Perbaikan Logika
 - **Fix:** Deteksi status PPT hanya menyala saat jendela *PowerPoint Slide Show* benar-benar terbuka (sebelumnya mode editing terhitung "aktif").
 - **Fix:** Hilangkan variabel mati `primary_url`.

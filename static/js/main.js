@@ -34,7 +34,7 @@ let lastRawGamma = 0;
 let smoothAbsX   = 0;
 let smoothAbsY   = 0;
 const GYRO_EMA      = 0.20;
-const GYRO_DEADZONE = 1.2;  // derajat, matikan jitter mikro saat HP diam
+const GYRO_DEADZONE = 0.4;  // derajat, tekan wobble mikro tanpa membuat pointer menempel
 
 // Touchpad state
 let isTouching    = false;
@@ -278,6 +278,7 @@ if (btnRecenter) {
         centerGamma = lastRawGamma;
         smoothAbsX  = 0;
         smoothAbsY  = 0;
+        socket.emit('laser_move', { absolute: true, dGamma: 0, dBeta: 0 });
         showTapFeedback('Tengah Terkunci', gyroArea, true);
     });
 }
@@ -311,13 +312,13 @@ window.addEventListener('deviceorientation', (e) => {
     if (dBeta  >  180) dBeta  -= 360;
     if (dBeta  < -180) dBeta  += 360;
 
-    // Deadzone: abaikan mikro-movemen sensor saat HP diam (anti-jitter)
-    if (Math.abs(dGamma) < GYRO_DEADZONE) dGamma = 0;
-    if (Math.abs(dBeta)  < GYRO_DEADZONE) dBeta  = 0;
-
     // EMA smoothing pada sudut absolut
     smoothAbsX = GYRO_EMA * dGamma + (1 - GYRO_EMA) * smoothAbsX;
     smoothAbsY = GYRO_EMA * dBeta  + (1 - GYRO_EMA) * smoothAbsY;
+
+    // Deadzone halus pada hasil akhir: tekan wobble mikro tanpa menempel di tengah
+    if (Math.abs(smoothAbsX) < GYRO_DEADZONE) smoothAbsX = 0;
+    if (Math.abs(smoothAbsY) < GYRO_DEADZONE) smoothAbsY = 0;
 
     const nowGyro = performance.now();
     if (nowGyro - lastGyroEmit >= GYRO_MIN_INTERVAL) {

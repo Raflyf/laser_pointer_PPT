@@ -67,9 +67,6 @@ def _apply_cursor_move(data):
     if is_absolute:
         dGamma = data.get('dGamma', 0)
         dBeta  = data.get('dBeta', 0)
-        # Hindari snap ke tengah layar saat gyro netral / baru aktif
-        if abs(dGamma) < 1.0 and abs(dBeta) < 1.0:
-            return
         FOV_X = 25.0
         FOV_Y = 20.0
         ratio_x = max(-1.0, min(1.0, dGamma / FOV_X))
