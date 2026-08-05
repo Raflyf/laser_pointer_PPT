@@ -24,6 +24,11 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 
 ## Changelog
 
+### 2026-08-05 — Fix Ngrok ERR_NGROK_3004 (TLS mismatch)
+- **Fix:** Server HTTPS-only (`ssl_context='adhoc'`) tidak kompatibel dengan tunnel ngrok yang mengirim HTTP polos ke localhost → gateway error `ERR_NGROK_3004`.
+- **Fix:** Dual listener — HTTPS :5000 untuk Local IP (gyroscope tetap jalan), HTTP polos `127.0.0.1:5001` khusus tunnel ngrok. Tunnel ngrok kini diarahkan ke :5001.
+- **Terverifikasi:** Local HTTPS 200, internal HTTP 200, URL publik ngrok 200.
+
 ### 2026-08-05 — Ngrok tidak lagi jadi ghost saat Ctrl+C
 - **Fix:** `cleanup` kini setelah `ngrok.kill()` juga menyapu paksa semua proses `ngrok.exe` via psutil — Ctrl+C dijamin tidak menyisakan ghost ngrok.
 - **Fix:** Tunnel ngrok gagal dengan `ERR_NGROK_334` karena `ngrok.exe` ghost dari sesi sebelumnya masih memegang endpoint. Sapuan ghost saat startup kini juga membunuh `ngrok.exe`.

@@ -35,6 +35,8 @@ socketio = SocketIO(
     max_http_buffer_size=1_000_000,
 )
 
+NGROK_LOCAL_PORT = 5001  # port HTTP polos khusus tunnel ngrok (server utama HTTPS-only)
+
 # Konfigurasi pyautogui
 pyautogui.FAILSAFE = False
 pyautogui.MINIMUM_SLEEP = 0
@@ -245,7 +247,7 @@ if __name__ == '__main__':
     print("Membuka tunnel Ngrok...")
     ngrok_url = None
     try:
-        ngrok_url = ngrok.connect(port).public_url
+        ngrok_url = ngrok.connect(NGROK_LOCAL_PORT).public_url
     except Exception as e:
         print(f"Gagal menjalankan Ngrok: {e}")
 
@@ -330,5 +332,13 @@ if __name__ == '__main__':
     print("Pilih 'Lanjutkan' atau 'Advanced' -> 'Proceed to ...(unsafe)' untuk membuka halaman.")
     print("Hal ini normal untuk self-signed certificate dan AMAN digunakan di jaringan lokal.\n")
 
+    # Backend HTTPS (adhoc) untuk Local IP — gyroscope butuh secure context.
+    # Backend HTTP polos di 127.0.0.1:5001 khusus tunnel ngrok,
+    # karena ngrok menghentikan TLS di edge dan mengirim HTTP polos ke localhost.
+    def run_http_for_ngrok():
+        socketio.run(app, host='127.0.0.1', port=NGROK_LOCAL_PORT,
+                     debug=False, allow_unsafe_werkzeug=True, use_reloader=False)
+
+    threading.Thread(target=run_http_for_ngrok, daemon=True).start()
     socketio.run(app, host='0.0.0.0', port=port, debug=False,
                  allow_unsafe_werkzeug=True, ssl_context='adhoc')
