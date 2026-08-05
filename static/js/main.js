@@ -46,25 +46,18 @@ let touchStartTime = 0;
 let tapTimeout    = null;
 let lastTapTime   = 0;
 
-// --- RAF Move Batching ---
-// Semua pergerakan dikumpulkan dan dikirim 1x per frame animasi (~16ms)
-// Ini mencegah buffer jaringan meluap dan menghilangkan frame drop
-let pendingMove = null;  // { dx, dy } atau { absolute:true, dGamma, dBeta }
-let rafScheduled = false;
+// --- Touchpad Emit Throttle ---
+// Kirim maksimum setiap 8ms (125Hz). Jika touchmove lebih cepat, delta di-akumulasi
+// agar tidak ada gerakan yang hilang (berbeda dengan RAF yang membuang intermediate moves).
+let lastTouchEmit = 0;
+let accDx = 0;
+let accDy = 0;
+const TOUCH_MIN_INTERVAL = 8; // ms (~125Hz)
 
-function scheduleMoveEmit(payload) {
-    pendingMove = payload;
-    if (!rafScheduled) {
-        rafScheduled = true;
-        requestAnimationFrame(() => {
-            if (pendingMove !== null) {
-                socket.emit('laser_move', pendingMove);
-                pendingMove = null;
-            }
-            rafScheduled = false;
-        });
-    }
-}
+// --- Gyro Emit Throttle (Absolute Mode) ---
+// Gyro hanya butuh posisi terbaru (latest-wins), cukup throttle tanpa akumulasi.
+let lastGyroEmit = 0;
+const GYRO_MIN_INTERVAL = 16; // ms (~60Hz) - sesuai refresh rate layar HP
 
 // =============================================
 // Socket Events
@@ -222,7 +215,16 @@ touchpadArea.addEventListener('touchmove', (e) => {
     const dx = t.clientX - lastTouchX;
     const dy = t.clientY - lastTouchY;
 
-    scheduleMoveEmit({ dx, dy });
+    accDx += dx;
+    accDy += dy;
+
+    const now = performance.now();
+    if (now - lastTouchEmit >= TOUCH_MIN_INTERVAL) {
+        socket.emit('laser_move', { dx: accDx, dy: accDy });
+        accDx = 0;
+        accDy = 0;
+        lastTouchEmit = now;
+    }
 
     lastTouchX = t.clientX;
     lastTouchY = t.clientY;
@@ -310,7 +312,11 @@ window.addEventListener('deviceorientation', (e) => {
     smoothAbsX = GYRO_EMA * dGamma + (1 - GYRO_EMA) * smoothAbsX;
     smoothAbsY = GYRO_EMA * dBeta  + (1 - GYRO_EMA) * smoothAbsY;
 
-    scheduleMoveEmit({ absolute: true, dGamma: smoothAbsX, dBeta: smoothAbsY });
+    const nowGyro = performance.now();
+    if (nowGyro - lastGyroEmit >= GYRO_MIN_INTERVAL) {
+        socket.emit('laser_move', { absolute: true, dGamma: smoothAbsX, dBeta: smoothAbsY });
+        lastGyroEmit = nowGyro;
+    }
 });
 
 // Reset center saat tab kembali aktif dari background

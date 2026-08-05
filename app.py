@@ -1,6 +1,7 @@
 import os
 import sys
 import ctypes
+import queue
 import subprocess
 import socket
 import signal
@@ -44,6 +45,43 @@ laser_process = None
 
 # Cache ukuran layar agar tidak dipanggil tiap event
 _screen_w, _screen_h = pyautogui.size()
+
+# --- Dedicated cursor thread ---
+# Queue maxsize=1: jika server lambat, event lama dibuang, hanya event TERBARU yang dieksekusi.
+# Ini menghilangkan antrean yang menumpuk dan membuat gerakan terasa lag.
+_move_queue: queue.Queue = queue.Queue(maxsize=1)
+
+def _cursor_worker():
+    """Thread terpisah khusus untuk menggerakkan kursor, bebas dari GIL SocketIO."""
+    while True:
+        try:
+            data = _move_queue.get(timeout=1.0)
+            _apply_cursor_move(data)
+        except queue.Empty:
+            continue
+
+def _apply_cursor_move(data):
+    is_absolute = data.get('absolute', False)
+    if is_absolute:
+        dGamma = data.get('dGamma', 0)
+        dBeta  = data.get('dBeta', 0)
+        FOV_X = 25.0
+        FOV_Y = 20.0
+        ratio_x = max(-1.0, min(1.0, dGamma / FOV_X))
+        ratio_y = max(-1.0, min(1.0, -dBeta  / FOV_Y))
+        new_x = int((_screen_w / 2) + (ratio_x * (_screen_w / 2)))
+        new_y = int((_screen_h / 2) + (ratio_y * (_screen_h / 2)))
+    else:
+        dx = data.get('dx', 0)
+        dy = data.get('dy', 0)
+        pt = POINT()
+        _user32.GetCursorPos(ctypes.byref(pt))
+        new_x = int(pt.x + dx * 3.0)
+        new_y = int(pt.y + dy * 3.0)
+
+    new_x = max(0, min(_screen_w - 1, new_x))
+    new_y = max(0, min(_screen_h - 1, new_y))
+    _user32.SetCursorPos(new_x, new_y)
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -124,38 +162,18 @@ def handle_laser_toggle(data):
 
 @socketio.on('laser_move')
 def handle_laser_move(data):
-    is_absolute = data.get('absolute', False)
-
-    if is_absolute:
-        # Mode Absolute Pointer: sudut kemiringan HP dipetakan langsung ke koordinat layar
-        dGamma = data.get('dGamma', 0)
-        dBeta = data.get('dBeta', 0)
-
-        # FOV: +/- derajat dari titik tengah untuk melintasi setengah layar
-        FOV_X = 25.0
-        FOV_Y = 20.0
-
-        ratio_x = max(-1.0, min(1.0, dGamma / FOV_X))
-        ratio_y = max(-1.0, min(1.0, -dBeta / FOV_Y))
-
-        new_x = int((_screen_w / 2) + (ratio_x * (_screen_w / 2)))
-        new_y = int((_screen_h / 2) + (ratio_y * (_screen_h / 2)))
-    else:
-        # Mode Touchpad Relatif
-        dx = data.get('dx', 0)
-        dy = data.get('dy', 0)
-        speed = 3.0
-
-        pt = POINT()
-        _user32.GetCursorPos(ctypes.byref(pt))
-
-        new_x = int(pt.x + dx * speed)
-        new_y = int(pt.y + dy * speed)
-
-    # Kunci agar tidak keluar batas layar
-    new_x = max(0, min(_screen_w - 1, new_x))
-    new_y = max(0, min(_screen_h - 1, new_y))
-    _user32.SetCursorPos(new_x, new_y)
+    # Handler ini langsung mengembalikan kontrol ke SocketIO.
+    # Proses cursor dilakukan oleh _cursor_worker di thread terpisah.
+    # Jika queue penuh (server tertinggal), buang event lama dan pakai yang terbaru.
+    if _move_queue.full():
+        try:
+            _move_queue.get_nowait()
+        except queue.Empty:
+            pass
+    try:
+        _move_queue.put_nowait(data)
+    except queue.Full:
+        pass
 
 def cleanup(signum=None, frame=None):
     print("\n[!] Menutup server dan membersihkan ghost process...")
@@ -173,6 +191,7 @@ if __name__ == '__main__':
     signal.signal(signal.SIGTERM, cleanup)
 
     threading.Thread(target=check_ppt_status, daemon=True).start()
+    threading.Thread(target=_cursor_worker, daemon=True).start()
 
     ip = get_local_ip()
     port = 5000
