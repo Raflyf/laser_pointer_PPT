@@ -199,6 +199,17 @@ def cleanup(signum=None, frame=None):
         ngrok.kill()
     except Exception:
         pass
+    # Pastikan tidak ada ngrok.exe tersisa saat server ditutup (anti ghost)
+    try:
+        import psutil
+        for proc in psutil.process_iter(['name']):
+            try:
+                if 'ngrok' in (proc.info.get('name') or ''):
+                    proc.kill()
+            except Exception:
+                pass
+    except Exception:
+        pass
     sys.exit(0)
 
 if __name__ == '__main__':

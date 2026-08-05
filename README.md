@@ -24,7 +24,8 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 
 ## Changelog
 
-### 2026-08-05 — Fix Ngrok Ghost & Startup
+### 2026-08-05 — Ngrok tidak lagi jadi ghost saat Ctrl+C
+- **Fix:** `cleanup` kini setelah `ngrok.kill()` juga menyapu paksa semua proses `ngrok.exe` via psutil — Ctrl+C dijamin tidak menyisakan ghost ngrok.
 - **Fix:** Tunnel ngrok gagal dengan `ERR_NGROK_334` karena `ngrok.exe` ghost dari sesi sebelumnya masih memegang endpoint. Sapuan ghost saat startup kini juga membunuh `ngrok.exe`.
 - **Fix:** `cleanup` kini terminate -> wait -> kill paksa subproses `laser_overlay.py` (tidak ada ghost saat Ctrl+C).
 - **Fix:** Tambah handler `SIGBREAK` dan `atexit` agar cleanup tetap jalan walau proses ditutup paksa.
