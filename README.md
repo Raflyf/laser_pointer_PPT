@@ -24,6 +24,11 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 
 ## Changelog
 
+### 2026-08-05 — Anti Ghost Process & Cleanup
+- **Fix:** `cleanup` kini terminate -> wait -> kill paksa subproses `laser_overlay.py` (tidak ada ghost saat Ctrl+C).
+- **Fix:** Tambah handler `SIGBREAK` dan `atexit` agar cleanup tetap jalan walau proses ditutup paksa.
+- **Fix:** Saat server start, sapu otomatis `laser_overlay.py` sisa dari sesi sebelumnya (tidak menumpuk ghost).
+
 ### 2026-08-05 — Fix Gyro "Stuck" di Tengah Layar
 - **Fix:** Hilangkan guard backend `<1.0°` yang memblokir pergerakan — pointer tidak lagi "menempel" saat melintasi/berhenti di tengah layar.
 - **Fix:** Deadzone dipindah dari input mentah ke hasil akhir EMA dan diturunkan `1.2°` -> `0.4°` — meredam wobble mikro tanpa mengunci pointer.

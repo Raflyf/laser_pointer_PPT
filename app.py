@@ -146,7 +146,8 @@ def handle_laser_toggle(data):
         if laser_type == 'global':
             if laser_process is None:
                 active_win = gw.getActiveWindow()
-                laser_process = subprocess.Popen([sys.executable, "laser_overlay.py"])
+                laser_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "laser_overlay.py")
+                laser_process = subprocess.Popen([sys.executable, laser_script])
                 def restore_focus():
                     time.sleep(0.5)
                     if active_win:
@@ -185,7 +186,15 @@ def cleanup(signum=None, frame=None):
     print("\n[!] Menutup server dan membersihkan ghost process...")
     global laser_process
     if laser_process is not None:
-        laser_process.terminate()
+        try:
+            laser_process.terminate()
+            laser_process.wait(timeout=3)
+        except Exception:
+            try:
+                laser_process.kill()
+            except Exception:
+                pass
+        laser_process = None
     try:
         ngrok.kill()
     except Exception:
@@ -195,6 +204,23 @@ def cleanup(signum=None, frame=None):
 if __name__ == '__main__':
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, cleanup)
+    import atexit
+    atexit.register(cleanup)
+
+    # Sapu sisa laser_overlay.py dari sesi sebelumnya (anti ghost process saat terminal ditutup paksa)
+    try:
+        import psutil
+        for proc in psutil.process_iter(['name', 'cmdline']):
+            try:
+                cmd = proc.info.get('cmdline') or []
+                if any('laser_overlay.py' in c for c in cmd):
+                    proc.kill()
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     threading.Thread(target=check_ppt_status, daemon=True).start()
     threading.Thread(target=_cursor_worker, daemon=True).start()
