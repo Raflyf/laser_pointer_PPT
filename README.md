@@ -7,7 +7,7 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 2. **Navigasi:** Tombol "Next" dan "Previous" yang responsif.
 3. **Laser Pointer Mode:** Tahan tombol laser (akan memicu `Ctrl+L` di PPT).
 4. **Gyroscope Control:** Arahkan HP untuk menggerakkan kursor laser.
-5. **Touchpad Control:** Mode geser sentuh yang lebih presisi (alternatif gyroscope).
+5. **Touchpad Control:** Area geser lebar (280px). 1-jari = kursor, 2-jari = scroll, tap = klik, double-tap = klik kanan.
 
 ## Cara Penggunaan
 1. Pastikan laptop dan HP terhubung di **jaringan WiFi yang sama** (atau hotspot).
@@ -23,6 +23,11 @@ Aplikasi web-based untuk mengontrol presentasi PowerPoint dari handphone melalui
 - **Frontend:** HTML5, CSS3 (Glassmorphism), Vanilla JS (Socket.io-client, DeviceOrientationEvent).
 
 ## Changelog
+
+### 2026-08-06 Touchpad lebih luas + 2-jari scroll
+- **Enhancement:** Area touchpad diperbesar dari 200px → 280px tinggi.
+- **Feature:** Tambah 2-jari scroll gesture di touchpad (geser 2 jari vertikal = scroll).
+- **UI:** Update hint text dan aria-label untuk mention scroll.
 
 ### 2026-08-05 — Redam banner ganda di terminal
 - **Fix:** Dua listener (`socketio.run` ganda) mencetak banner werkzeug `* Running on` dua kali. Banner diredam dengan menaikkan level logger `werkzeug` & `socketio` ke `ERROR` (parameter `log` tidak didukung Werkzeug 3.x).

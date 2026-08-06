@@ -194,7 +194,7 @@ body {
    Touchpad Area
    ============================================= */
 .touch-area {
-    height: 200px;
+    height: 280px;
     background: oklch(0 0 0 / 0.2);
     border: 1px solid var(--border);
     border-radius: var(--r-xl);

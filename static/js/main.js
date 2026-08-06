@@ -34,7 +34,7 @@ let lastRawGamma = 0;
 let smoothAbsX   = 0;
 let smoothAbsY   = 0;
 const GYRO_EMA      = 0.20;
-const GYRO_DEADZONE = 0.4;  // derajat, tekan wobble mikro tanpa membuat pointer menempel
+const GYRO_DEADZONE = 0.05;  // derajat, hanya filter wobble diam, tidak mengunci pointer di tengah
 
 // Touchpad state
 let isTouching    = false;
@@ -54,6 +54,11 @@ let lastTouchEmit = 0;
 let accDx = 0;
 let accDy = 0;
 const TOUCH_MIN_INTERVAL = 6; // ms — sesuai 144Hz display (~6.9ms/frame)
+
+//--- 2-Jari Scroll state ---
+let scrollAcc = 0;
+let lastScrollY = null;
+const SCROLL_MIN_INTERVAL = 16; // 60Hz
 
 // --- Gyro Emit Throttle (Absolute Mode) ---
 // Gyro hanya butuh posisi terbaru (latest-wins), cukup throttle tanpa akumulasi.
@@ -205,12 +210,37 @@ touchpadArea.addEventListener('touchstart', (e) => {
     lastTouchY = touchStartY = t.clientY;
     touchStartTime = Date.now();
     tapMoved = false;
+    lastScrollY = null;
+    scrollAcc = 0;
     touchpadArea.classList.add('active-drag');
 }, { passive: false });
 
 touchpadArea.addEventListener('touchmove', (e) => {
     e.preventDefault();
     if (!isTouching || currentMode !== 'touch') return;
+
+    // 2-jari scroll gesture
+    if (e.touches.length >= 2) {
+        const avgY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        if (lastScrollY !== null) {
+            scrollAcc += (lastScrollY - avgY);
+            const now = performance.now();
+            if (now - lastTouchEmit >= SCROLL_MIN_INTERVAL) {
+                if (scrollAcc !== 0) {
+                    const unit = Math.sign(scrollAcc) * Math.min(Math.abs(Math.round(scrollAcc / 3)), 50);
+                    socket.emit('action', { command: 'scroll', dy: unit });
+                    scrollAcc = 0;
+                    lastTouchEmit = now;
+                }
+            }
+        }
+        lastScrollY = avgY;
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+        tapMoved = true;
+        return;
+    }
+    lastScrollY = null;
 
     const t = e.touches[0];
     const dx = t.clientX - lastTouchX;
@@ -240,6 +270,8 @@ touchpadArea.addEventListener('touchmove', (e) => {
 touchpadArea.addEventListener('touchend', (e) => {
     e.preventDefault();
     isTouching = false;
+    lastScrollY = null;
+    scrollAcc = 0;
     touchpadArea.classList.remove('active-drag');
 
     if (currentMode === 'touch' && !tapMoved) {

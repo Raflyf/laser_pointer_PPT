@@ -131,6 +131,7 @@ def handle_action(data):
         'right_click': lambda: pyautogui.rightClick(),
         'esc':         lambda: pyautogui.press('esc'),
         'f5':          lambda: pyautogui.press('f5'),
+        'scroll':      lambda: pyautogui.scroll(max(-50, min(50, int(data.get('dy', 0))))),
     }
     action_fn = actions.get(command)
     if action_fn:
