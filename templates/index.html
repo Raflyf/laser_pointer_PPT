@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Pointer PPT - Kendalikan presentasi dari HP Anda menggunakan touchpad atau gyroscope.">
     <meta name="theme-color" content="#080c14">
     <title>Pointer PPT</title>
@@ -79,6 +79,7 @@
         </div>
     </main>
 
+    <script>window.POINTER_TOKEN = "{{ pointer_token }}";</script>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

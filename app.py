@@ -5,8 +5,10 @@ import queue
 import subprocess
 import socket
 import signal
+import secrets
 import threading
 import time
+import logging
 import tkinter as tk
 from PIL import Image, ImageTk
 import io
@@ -17,15 +19,23 @@ from flask_socketio import SocketIO
 from pyngrok import ngrok
 import qrcode
 
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+
 # --- Struktur ctypes di level modul (bukan di dalam handler) ---
 class POINT(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
 
 _user32 = ctypes.windll.user32
 
+# Token akses acak per-jalankan untuk mengotorisasi remote (H1).
+# Set via env POINTER_TOKEN agar bisa dipakai kembali; default acak tiap start.
+POINTER_TOKEN = os.environ.get('POINTER_TOKEN') or secrets.token_urlsafe(18)
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'pointer-secret-key'
-# allow_upgrades=False + ping_timeout tinggi agar koneksi WebSocket stabil saat idle
+app.config['SECRET_KEY'] = os.environ.get('POINTER_SECRET') or POINTER_TOKEN
+# CORS tetap universal karena origin LAN/ngrok dinamis; keamanan dijaga token
+# yang divalidasi di handle_connect (setiap client wajib kirim auth.token).
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
@@ -45,6 +55,20 @@ pyautogui.MINIMUM_DURATION = 0
 is_ppt_active = False
 laser_process = None
 
+def _kill_process_tree(proc):
+    """M4: bunuh proses + seluruh anaknya (Windows: taskkill /T). Mencegah ghost overlay."""
+    pid = proc.pid if proc else None
+    if not pid:
+        return
+    try:
+        subprocess.run(['taskkill', '/PID', str(pid), '/T', '/F'],
+                       capture_output=True, timeout=5)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
 # Cache ukuran layar agar tidak dipanggil tiap event
 _screen_w, _screen_h = pyautogui.size()
 
@@ -61,6 +85,8 @@ def _cursor_worker():
             _apply_cursor_move(data)
         except queue.Empty:
             continue
+        except Exception:
+            log.exception('Cursor worker error')
 
 def _apply_cursor_move(data):
     if not isinstance(data, dict):
@@ -113,14 +139,24 @@ def check_ppt_status():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', pointer_token=POINTER_TOKEN)
 
 @socketio.on('connect')
-def handle_connect():
+def handle_connect(auth=None):
+    # H1: tolak koneksi tanpa token yang benar. Client wajib kirim auth.token.
+    if not auth or auth.get('token') != POINTER_TOKEN:
+        log.warning('Koneksi ditolak: token tidak valid')
+        return False
     socketio.emit('ppt_status', {'active': is_ppt_active}, to=request.sid)
+
+# M3: throttle antar aksi keyboard/klik agar socket flood tidak jadi rentetan keypress
+_action_lock = threading.Lock()
+_last_action_at = 0.0
+ACTION_MIN_INTERVAL = 0.04  # 40ms antar aksi
 
 @socketio.on('action')
 def handle_action(data):
+    global _last_action_at
     if not isinstance(data, dict):
         return
     command = data.get('command')
@@ -131,11 +167,23 @@ def handle_action(data):
         'right_click': lambda: pyautogui.rightClick(),
         'esc':         lambda: pyautogui.press('esc'),
         'f5':          lambda: pyautogui.press('f5'),
-        'scroll':      lambda: pyautogui.scroll(max(-50, min(50, int(data.get('dy', 0))))),
+        'scroll':      lambda: pyautogui.scroll(max(-300, min(300, int(data.get('dy', 0))))),
     }
     action_fn = actions.get(command)
-    if action_fn:
+    if not action_fn:
+        return
+    # Scroll dibebaskan dari rate-limit: butuh merespons tiap event 60Hz agar
+    # terasa seperti touchpad fisik. Rate-limit hanya untuk keypress/klik (M3).
+    if command != 'scroll':
+        with _action_lock:
+            now = time.monotonic()
+            if now - _last_action_at < ACTION_MIN_INTERVAL:
+                return
+            _last_action_at = now
+    try:
         action_fn()
+    except Exception:
+        log.exception('Gagal eksekusi aksi %s', command)
 
 @socketio.on('laser_toggle')
 def handle_laser_toggle(data):
@@ -163,7 +211,7 @@ def handle_laser_toggle(data):
             pyautogui.hotkey('ctrl', 'l')
     else:
         if laser_process is not None:
-            laser_process.terminate()
+            _kill_process_tree(laser_process)
             laser_process = None
         if laser_type == 'ppt':
             pyautogui.hotkey('ctrl', 'a')
@@ -189,14 +237,7 @@ def cleanup(signum=None, frame=None):
     print("\n[!] Menutup server dan membersihkan ghost process...")
     global laser_process
     if laser_process is not None:
-        try:
-            laser_process.terminate()
-            laser_process.wait(timeout=3)
-        except Exception:
-            try:
-                laser_process.kill()
-            except Exception:
-                pass
+        _kill_process_tree(laser_process)
         laser_process = None
     try:
         ngrok.kill()

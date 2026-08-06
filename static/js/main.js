@@ -1,5 +1,9 @@
-// Paksa WebSocket murni — skip HTTP long-polling yang menyebabkan latensi 50-100ms
-const socket = io({ transports: ['websocket'], upgrade: false });
+// WebSocket murni utama (latensi rendah); fallback ke polling bila WS ditolak (M5).
+const socket = io({
+    transports: ['websocket', 'polling'],
+    upgrade: true,
+    auth: { token: window.POINTER_TOKEN },
+});
 
 // =============================================
 // DOM References
@@ -58,6 +62,8 @@ const TOUCH_MIN_INTERVAL = 6; // ms — sesuai 144Hz display (~6.9ms/frame)
 //--- 2-Jari Scroll state ---
 let scrollAcc = 0;
 let lastScrollY = null;
+let scrollVelocity = 0;    // kecepatan scroll per-frame (unit), untuk inertia
+let momentumFrame = null;  // id rAF inertia scroll
 const SCROLL_MIN_INTERVAL = 16; // 60Hz
 
 // --- Gyro Emit Throttle (Absolute Mode) ---
@@ -74,6 +80,12 @@ socket.on('connect', () => {
 
 socket.on('disconnect', () => {
     setStatus('Terputus', '');
+});
+
+// M5: tampilkan pesan jelas saat koneksi gagal / token ditolak
+socket.on('connect_error', (err) => {
+    const rejected = err && err.message && /rejected|token/i.test(err.message);
+    setStatus(rejected ? 'Koneksi ditolak (token salah)' : 'Gagal terhubung', '');
 });
 
 socket.on('ppt_status', ({ active }) => {
@@ -205,6 +217,7 @@ btnModeGyro.addEventListener('click', async () => {
 touchpadArea.addEventListener('touchstart', (e) => {
     e.preventDefault();
     isTouching = true;
+    if (momentumFrame) { cancelAnimationFrame(momentumFrame); momentumFrame = null; }
     const t = e.touches[0];
     lastTouchX = touchStartX = t.clientX;
     lastTouchY = touchStartY = t.clientY;
@@ -212,6 +225,7 @@ touchpadArea.addEventListener('touchstart', (e) => {
     tapMoved = false;
     lastScrollY = null;
     scrollAcc = 0;
+    scrollVelocity = 0;
     touchpadArea.classList.add('active-drag');
 }, { passive: false });
 
@@ -223,13 +237,19 @@ touchpadArea.addEventListener('touchmove', (e) => {
     if (e.touches.length >= 2) {
         const avgY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
         if (lastScrollY !== null) {
-            scrollAcc += (lastScrollY - avgY);
+            // Arah: geser jari ke bawah = konten naik (wheel-up), sama touchpad fisik klasik.
+            // Akumulator fractional: semua delta tersimpan (termasuk sisa <1 unit) sehingga
+            // gerak pelan tidak hilang dan scroll terlihat mulus seperti wheel fisik.
+            const SCROLL_PX_PER_UNIT = 0.7;  // piksel jari per 1 notch wheel (2.2 terlalu berat)
+            scrollAcc += (avgY - lastScrollY) / SCROLL_PX_PER_UNIT;
             const now = performance.now();
             if (now - lastTouchEmit >= SCROLL_MIN_INTERVAL) {
-                if (scrollAcc !== 0) {
-                    const unit = Math.sign(scrollAcc) * Math.min(Math.abs(Math.round(scrollAcc / 3)), 50);
+                const whole = Math.trunc(scrollAcc);
+                if (whole !== 0) {
+                    const unit = Math.max(-120, Math.min(120, whole));
                     socket.emit('action', { command: 'scroll', dy: unit });
-                    scrollAcc = 0;
+                    scrollAcc -= whole;                           // simpan sisa fractional untuk frame berikutnya
+                    scrollVelocity = whole;                       // track kecepatan untuk inertia
                     lastTouchEmit = now;
                 }
             }
@@ -273,6 +293,22 @@ touchpadArea.addEventListener('touchend', (e) => {
     lastScrollY = null;
     scrollAcc = 0;
     touchpadArea.classList.remove('active-drag');
+
+    // Inertia scroll: lepas cepat → lajut scroll dengan kecepatan meluruh (momentum).
+    if (currentMode === 'touch' && Math.abs(scrollVelocity) >= 4) {
+        let vel = scrollVelocity;
+        let frames = 0;
+        const decay = () => {
+            if (frames >= 90) { scrollVelocity = 0; return; }  // batas maks
+            frames++;
+            const v = (vel *= 0.88);
+            if (Math.abs(v) < 0.5) { scrollVelocity = 0; return; }
+            socket.emit('action', { command: 'scroll', dy: Math.trunc(v) });
+            momentumFrame = requestAnimationFrame(decay);
+        };
+        momentumFrame = requestAnimationFrame(decay);
+        scrollVelocity = 0;
+    }
 
     if (currentMode === 'touch' && !tapMoved) {
         const duration = Date.now() - touchStartTime;
